@@ -48,3 +48,9 @@ Time and space are both linear in the number of rows. For ~100,000 employees tha
 ## Time spent
 
 About 70 minutes on the implementation, not counting the walkthrough recording.
+
+## AI tools
+
+I used Cursor while building this. It helped with the Django project layout and the HTML page. I wrote and checked the parse/analyze rules myself against the sample file.
+
+I accepted help on the upload view boilerplate. I changed the cycle detection: an early suggestion used a generic graph SCC approach, which is heavier than this problem needs, since each employee has at most one manager. I rejected adding database models. The exercise asks for a preview before any employee data is written, and persistence would have hidden mistakes instead of making the logic easier to test.
