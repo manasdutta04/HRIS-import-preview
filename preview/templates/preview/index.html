@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>HRIS import preview</title>
+  <style>
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      max-width: 960px;
+      margin: 32px auto;
+      padding: 0 16px;
+      color: #1a1a1a;
+      line-height: 1.45;
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
+    .lede { color: #444; margin-bottom: 1.5rem; }
+    form {
+      border: 1px solid #ccc;
+      padding: 16px;
+      margin-bottom: 24px;
+      background: #fafafa;
+    }
+    button {
+      margin-top: 8px;
+      padding: 6px 12px;
+    }
+    .error {
+      border: 1px solid #a33;
+      background: #fdecec;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+    }
+    .counts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .count {
+      border: 1px solid #ccc;
+      padding: 10px 14px;
+      min-width: 120px;
+    }
+    .count strong { display: block; font-size: 1.4rem; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 28px;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f3f3f3; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>HRIS import preview</h1>
+  <p class="lede">
+    Upload a client HRIS export to inspect row counts, validation problems,
+    roots, managers, and reporting cycles before anything is written to the platform.
+  </p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <label for="hris_file">CSV file</label><br>
+    <input id="hris_file" type="file" name="hris_file" accept=".csv,text/csv" required>
+    <br>
+    <button type="submit">Preview import</button>
+  </form>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+    <p class="muted">File: {{ filename }}</p>
+
+    <div class="counts">
+      <div class="count">
+        <strong>{{ result.source_row_count }}</strong>
+        source rows
+      </div>
+      <div class="count">
+        <strong>{{ result.accepted|length }}</strong>
+        accepted for analysis
+      </div>
+      <div class="count">
+        <strong>{{ result.errors|length }}</strong>
+        validation errors
+      </div>
+      <div class="count">
+        <strong>{{ result.roots|length }}</strong>
+        roots
+      </div>
+      <div class="count">
+        <strong>{{ result.cycle_members|length }}</strong>
+        in a reporting cycle
+      </div>
+    </div>
+
+    <h2>Row-level validation errors</h2>
+    {% if result.errors %}
+      <table>
+        <thead>
+          <tr>
+            <th>Source row</th>
+            <th>Employee ID</th>
+            <th>Problem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in result.errors %}
+            <tr>
+              <td>{{ item.source_row }}</td>
+              <td>{{ item.employee_id }}</td>
+              <td>{{ item.message }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No validation errors.</p>
+    {% endif %}
+
+    <h2>Accepted employees</h2>
+    {% if result.accepted %}
+      <table>
+        <thead>
+          <tr>
+            <th>Source row</th>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in result.accepted %}
+            <tr>
+              <td>{{ row.source_row }}</td>
+              <td>{{ row.employee_id }}</td>
+              <td>{{ row.employee_name }}</td>
+              <td>{{ row.email }}</td>
+              <td>{{ row.department }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No employees passed identity checks.</p>
+    {% endif %}
+
+    <h2>Root employees</h2>
+    <p class="muted">People with both manager fields blank. Manager errors are not treated as roots.</p>
+    {% if result.roots %}
+      <table>
+        <thead>
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in result.roots %}
+            <tr>
+              <td>{{ row.employee_id }}</td>
+              <td>{{ row.employee_name }}</td>
+              <td>{{ row.email }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No root employees.</p>
+    {% endif %}
+
+    <h2>Managers and direct reports</h2>
+    {% if result.managers %}
+      <table>
+        <thead>
+          <tr>
+            <th>Manager ID</th>
+            <th>Name</th>
+            <th>Direct reports</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for manager, count in result.managers %}
+            <tr>
+              <td>{{ manager.employee_id }}</td>
+              <td>{{ manager.employee_name }}</td>
+              <td>{{ count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No reporting relationships were resolved.</p>
+    {% endif %}
+
+    <h2>Reporting cycles</h2>
+    <p class="muted">Only people who sit on a loop. Reporting into a cycle is not enough.</p>
+    {% if result.cycle_members %}
+      <table>
+        <thead>
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in result.cycle_members %}
+            <tr>
+              <td>{{ row.employee_id }}</td>
+              <td>{{ row.employee_name }}</td>
+              <td>{{ row.email }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No reporting cycles.</p>
+    {% endif %}
+  {% endif %}
+</body>
+</html>
